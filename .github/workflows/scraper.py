@@ -51,19 +51,13 @@ def scrape_tiak_with_browser(date_str):
             for category in categories:
                 try:
                     log(f"Selecting category: {category['label']}")
-                    
                     page.select_option('#kisi', category['value'])
-                    
                     log("Waiting for table to update...")
                     time.sleep(3)
-                    
                     table_html = page.inner_html('#tablo')
-                    
                     programs = parse_table_html(table_html)
                     all_data['categories'][category['name']] = programs
-                    
                     log(f"Found {len(programs)} programs in {category['label']}")
-                    
                 except Exception as e:
                     log(f"Error scraping {category['label']}: {str(e)}")
                     all_data['categories'][category['name']] = []
@@ -71,7 +65,6 @@ def scrape_tiak_with_browser(date_str):
         except Exception as e:
             log(f"Browser error: {str(e)}")
             return None
-        
         finally:
             browser.close()
     
@@ -82,8 +75,8 @@ def parse_table_html(html):
     
     soup = BeautifulSoup(html, 'html.parser')
     programs = []
-    
     table = soup.find('table')
+    
     if not table:
         return programs
     
@@ -118,26 +111,65 @@ def parse_table_html(html):
             }
             
             programs.append(program)
-            
         except Exception as e:
             continue
     
     return programs
 
-def save_data_to_file(data, date_str):
-    """حفظ البيانات في ملف JSON"""
-    log("Saving data to file...")
+def merge_categories(data):
+    log("Merging categories...")
     
-    # إنشاء مجلد data إذا لم يكن موجوداً
+    merged = []
+    
+    for total_program in data['categories']['total']:
+        program_name = total_program['name']
+        
+        ab_program = next(
+            (p for p in data['categories']['ab'] if p['name'] == program_name),
+            None
+        )
+        
+        abc1_program = next(
+            (p for p in data['categories']['abc1'] if p['name'] == program_name),
+            None
+        )
+        
+        merged_program = {
+            'name': total_program['name'],
+            'channel': total_program['channel'],
+            'start_time': total_program['start_time'],
+            'end_time': total_program['end_time'],
+            'rank_total': total_program['rank'],
+            'rating_total': total_program['rating'],
+            'share_total': total_program['share'],
+            'rank_ab': ab_program['rank'] if ab_program else None,
+            'rating_ab': ab_program['rating'] if ab_program else None,
+            'share_ab': ab_program['share'] if ab_program else None,
+            'rank_abc1': abc1_program['rank'] if abc1_program else None,
+            'rating_abc1': abc1_program['rating'] if abc1_program else None,
+            'share_abc1': abc1_program['share'] if abc1_program else None,
+        }
+        
+        merged.append(merged_program)
+    
+    log(f"Merged {len(merged)} programs")
+    
+    return {
+        'date': data['date'],
+        'scraped_at': data['scraped_at'],
+        'programs': merged
+    }
+
+def save_data_to_file(data, date_str, suffix=''):
+    log(f"Saving data to file{' (' + suffix + ')' if suffix else ''}...")
+    
     os.makedirs('data', exist_ok=True)
     
-    # اسم الملف بناءً على التاريخ
-    filename = f"data/ratings_{date_str.replace('.', '-')}.json"
+    filename = f"data/ratings_{date_str.replace('.', '-')}{('_' + suffix) if suffix else ''}.json"
     
     try:
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
-        
         log(f"✓ Data saved to {filename}")
         return filename
     except Exception as e:
@@ -145,24 +177,15 @@ def save_data_to_file(data, date_str):
         return None
 
 def commit_to_github(filename, date_str):
-    """Commit الملف للريبو"""
     log("Committing to GitHub...")
     
     try:
-        # إعداد Git
         os.system('git config --global user.email "github-actions[bot]@users.noreply.github.com"')
         os.system('git config --global user.name "GitHub Actions Bot"')
-        
-        # إضافة الملف
         os.system(f'git add {filename}')
-        
-        # Commit
         commit_message = f"Add TİAK ratings for {date_str}"
         os.system(f'git commit -m "{commit_message}"')
-        
-        # Push
         os.system('git push')
-        
         log("✓ Successfully committed to GitHub")
         return True
     except Exception as e:
@@ -170,10 +193,8 @@ def commit_to_github(filename, date_str):
         return False
 
 def send_to_api(data):
-    """إرسال البيانات للـ API"""
     log("Attempting to send to API...")
     
-    # طباعة البيانات للفحص
     log("=== DATA STRUCTURE ===")
     log(json.dumps(data, indent=2, ensure_ascii=False))
     log("=== END DATA ===")
@@ -189,7 +210,6 @@ def send_to_api(data):
     
     try:
         response = requests.post(API_URL, json=data, headers=headers, timeout=30)
-        
         log(f"API Response Status: {response.status_code}")
         log(f"API Response Body: {response.text[:500]}")
         
@@ -200,7 +220,6 @@ def send_to_api(data):
         else:
             log(f"✗ API Error {response.status_code}: {response.text}")
             return False
-            
     except Exception as e:
         log(f"✗ API Request failed: {str(e)}")
         import traceback
@@ -217,7 +236,6 @@ def main():
     
     log(f"Target date: {date_str}")
     
-    # 1. جمع البيانات
     data = scrape_tiak_with_browser(date_str)
     
     if not data:
@@ -233,20 +251,20 @@ def main():
     log(f"  - AB: {len(data['categories']['ab'])}")
     log(f"  - ABC1: {len(data['categories']['abc1'])}")
     
-    # 2. حفظ البيانات محلياً
-    filename = save_data_to_file(data, date_str)
+    filename_raw = save_data_to_file(data, date_str, 'raw')
+    
+    merged_data = merge_categories(data)
+    
+    filename = save_data_to_file(merged_data, date_str)
     
     if not filename:
         log("✗ Failed to save data locally")
         exit(1)
     
-    # 3. Commit للـ GitHub
     git_success = commit_to_github(filename, date_str)
     
-    # 4. محاولة الإرسال للـ API (اختياري)
-    api_success = send_to_api(data)
+    api_success = send_to_api(merged_data)
     
-    # 5. النتيجة النهائية
     log("=" * 60)
     log("SUMMARY")
     log("=" * 60)
@@ -255,7 +273,6 @@ def main():
     log(f"✓ Committed to GitHub: {'YES' if git_success else 'NO'}")
     log(f"✓ Sent to API: {'YES' if api_success else 'NO'}")
     
-    # نجاح إذا تم الحفظ في GitHub حتى لو فشل الـ API
     if git_success:
         log("✓ SUCCESS: Data saved in GitHub!")
         exit(0)
