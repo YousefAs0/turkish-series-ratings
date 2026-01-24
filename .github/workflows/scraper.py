@@ -1,93 +1,129 @@
-import requests
-import json
 import os
+import json
+import requests
 from datetime import datetime, timedelta
-from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
 import time
 
-API_URL = os.environ['API_URL']
-API_TOKEN = os.environ['API_TOKEN']
-TIAK_BASE_URL = "https://tiak.com.tr"
-TIAK_CEK_URL = f"{TIAK_BASE_URL}/cek.php"
+API_URL = os.getenv('API_URL')
+API_TOKEN = os.getenv('API_TOKEN')
 
 def log(message):
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     print(f"[{timestamp}] {message}")
 
-def scrape_tiak(date_str, category_code):
-    log(f"Scraping category {category_code} for {date_str}...")
+def scrape_tiak_with_browser(date_str):
+    log(f"Starting browser scraping for {date_str}")
     
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': '*/*',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Referer': f'{TIAK_BASE_URL}/en/charts',
-        'Origin': TIAK_BASE_URL,
-        'X-Requested-With': 'XMLHttpRequest'
+    day, month, year = date_str.split('.')
+    
+    all_data = {
+        'date': f"{year}-{month}-{day}",
+        'categories': {
+            'total': [],
+            'ab': [],
+            'abc1': []
+        }
     }
     
-    try:
-        date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-        formatted_date = f"{date_obj.month}.{date_obj.day}.{date_obj.year}"
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
         
-        data = {
-            'date': formatted_date,
-            'kisi': str(category_code)
-        }
-        
-        log(f"Request: {TIAK_CEK_URL} with date={formatted_date}, kisi={category_code}")
-        
-        response = requests.post(
-            TIAK_CEK_URL,
-            data=data,
-            headers=headers,
-            timeout=30
-        )
-        response.encoding = 'utf-8'
-        response.raise_for_status()
-        
-        soup = BeautifulSoup(response.text, 'html.parser')
-        programs = []
-        
-        table = soup.find('table')
-        
-        if not table:
-            log(f"No table found in response")
-            return []
-        
-        rows = table.find_all('tr')
-        
-        for row in rows[1:]:
-            cols = row.find_all('td')
+        try:
+            log("Opening TİAK charts page...")
+            page.goto('https://tiak.com.tr/en/charts', wait_until='networkidle', timeout=60000)
             
-            if len(cols) >= 7:
+            log("Page loaded, waiting for elements...")
+            page.wait_for_selector('#tarih', timeout=10000)
+            
+            log(f"Setting date: {date_str}")
+            page.fill('#tarih', date_str)
+            
+            categories = [
+                {'name': 'total', 'radio_id': 'kisi1', 'label': 'All People'},
+                {'name': 'ab', 'radio_id': 'kisi2', 'label': 'AB'},
+                {'name': 'abc1', 'radio_id': 'kisi3', 'label': '20+ABC1'}
+            ]
+            
+            for category in categories:
                 try:
-                    rank_text = cols[0].text.strip()
-                    if not rank_text or not rank_text.isdigit():
-                        continue
+                    log(f"Selecting category: {category['label']}")
                     
-                    programs.append({
-                        'rank': int(rank_text),
-                        'name': cols[1].text.strip(),
-                        'channel': cols[2].text.strip(),
-                        'start_time': cols[3].text.strip(),
-                        'end_time': cols[4].text.strip(),
-                        'rating': float(cols[5].text.strip()),
-                        'share': float(cols[6].text.strip())
-                    })
+                    page.click(f"#{category['radio_id']}")
+                    time.sleep(1)
                     
-                except (ValueError, IndexError) as e:
-                    continue
+                    page.click('#buton')
+                    
+                    log("Waiting for table to load...")
+                    page.wait_for_selector('table.table', timeout=15000)
+                    time.sleep(2)
+                    
+                    table_html = page.inner_html('table.table')
+                    
+                    programs = parse_table_html(table_html)
+                    all_data['categories'][category['name']] = programs
+                    
+                    log(f"Found {len(programs)} programs in {category['label']}")
+                    
+                except Exception as e:
+                    log(f"Error scraping {category['label']}: {str(e)}")
+                    all_data['categories'][category['name']] = []
+            
+        except Exception as e:
+            log(f"Browser error: {str(e)}")
+            return None
         
-        log(f"Found {len(programs)} programs")
-        return programs
+        finally:
+            browser.close()
+    
+    return all_data
+
+def parse_table_html(html):
+    from bs4 import BeautifulSoup
+    
+    soup = BeautifulSoup(html, 'html.parser')
+    programs = []
+    
+    rows = soup.find_all('tr')
+    
+    for row in rows[1:]:
+        cells = row.find_all('td')
         
-    except Exception as e:
-        log(f"Error: {e}")
-        return []
+        if len(cells) < 7:
+            continue
+        
+        try:
+            rank = cells[0].get_text(strip=True)
+            channel = cells[1].get_text(strip=True)
+            name = cells[2].get_text(strip=True)
+            start_time = cells[3].get_text(strip=True)
+            end_time = cells[4].get_text(strip=True)
+            rating = cells[5].get_text(strip=True)
+            share = cells[6].get_text(strip=True)
+            
+            if not name or name == '-':
+                continue
+            
+            program = {
+                'rank': int(rank) if rank.isdigit() else 0,
+                'channel': channel,
+                'name': name,
+                'start_time': start_time,
+                'end_time': end_time,
+                'rating': float(rating.replace(',', '.')) if rating and rating != '-' else 0.0,
+                'share': float(share.replace(',', '.')) if share and share != '-' else 0.0
+            }
+            
+            programs.append(program)
+            
+        except Exception as e:
+            continue
+    
+    return programs
 
 def send_to_api(data):
-    log(f"Sending to API...")
+    log("Sending to API...")
     
     headers = {
         'Content-Type': 'application/json',
@@ -95,13 +131,18 @@ def send_to_api(data):
     }
     
     try:
-        response = requests.post(API_URL, json=data, headers=headers, timeout=60)
-        response.raise_for_status()
-        result = response.json()
-        log(f"Success: {result}")
-        return True
+        response = requests.post(API_URL, json=data, headers=headers, timeout=30)
+        
+        if response.status_code == 200:
+            result = response.json()
+            log(f"Success: {result}")
+            return True
+        else:
+            log(f"API Error {response.status_code}: {response.text}")
+            return False
+            
     except Exception as e:
-        log(f"API Error: {e}")
+        log(f"Request failed: {str(e)}")
         return False
 
 def main():
@@ -109,28 +150,32 @@ def main():
     log("TİAK Scraper Started")
     log("=" * 60)
     
-    yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
-    log(f"Date: {yesterday}")
+    yesterday = datetime.now() - timedelta(days=1)
+    date_str = yesterday.strftime('%m.%d.%Y')
     
-    categories = {
-        'total': scrape_tiak(yesterday, 1),
-        'ab': scrape_tiak(yesterday, 2),
-        'abc1': scrape_tiak(yesterday, 3)
-    }
+    log(f"Target date: {date_str}")
     
-    time.sleep(2)
+    data = scrape_tiak_with_browser(date_str)
     
-    payload = {
-        'date': yesterday,
-        'categories': categories
-    }
+    if not data:
+        log("Failed to scrape data")
+        exit(1)
     
-    if send_to_api(payload):
+    if not data['categories']['total']:
+        log("No data found for this date")
+        exit(1)
+    
+    log(f"Total programs scraped:")
+    log(f"  - All People: {len(data['categories']['total'])}")
+    log(f"  - AB: {len(data['categories']['ab'])}")
+    log(f"  - ABC1: {len(data['categories']['abc1'])}")
+    
+    if send_to_api(data):
         log("Completed successfully!")
         exit(0)
     else:
-        log("Failed!")
+        log("Failed to send to API")
         exit(1)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
