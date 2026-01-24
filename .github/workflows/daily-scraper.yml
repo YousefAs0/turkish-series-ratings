@@ -2,15 +2,15 @@ name: Daily TİAK Scraper
 
 on:
   schedule:
-    - cron: '0 2 * * *'  # كل يوم الساعة 2 صباحاً
-  workflow_dispatch:  # تشغيل يدوي
+    - cron: '0 2 * * *'
+  workflow_dispatch:
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
     
     permissions:
-      contents: write  # ضروري للـ commit
+      contents: write
     
     steps:
       - name: Checkout repository
@@ -34,7 +34,7 @@ jobs:
           API_TOKEN: ${{ secrets.API_TOKEN }}
         run: python .github/workflows/scraper.py
       
-      - name: Upload artifact (backup)
+      - name: Upload artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
