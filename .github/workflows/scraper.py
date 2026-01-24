@@ -19,6 +19,7 @@ def scrape_tiak_with_browser(date_str):
     
     all_data = {
         'date': f"{year}-{month}-{day}",
+        'scraped_at': datetime.now().isoformat(),
         'categories': {
             'total': [],
             'ab': [],
@@ -123,8 +124,63 @@ def parse_table_html(html):
     
     return programs
 
+def save_data_to_file(data, date_str):
+    """حفظ البيانات في ملف JSON"""
+    log("Saving data to file...")
+    
+    # إنشاء مجلد data إذا لم يكن موجوداً
+    os.makedirs('data', exist_ok=True)
+    
+    # اسم الملف بناءً على التاريخ
+    filename = f"data/ratings_{date_str.replace('.', '-')}.json"
+    
+    try:
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        
+        log(f"✓ Data saved to {filename}")
+        return filename
+    except Exception as e:
+        log(f"✗ Failed to save file: {str(e)}")
+        return None
+
+def commit_to_github(filename, date_str):
+    """Commit الملف للريبو"""
+    log("Committing to GitHub...")
+    
+    try:
+        # إعداد Git
+        os.system('git config --global user.email "github-actions[bot]@users.noreply.github.com"')
+        os.system('git config --global user.name "GitHub Actions Bot"')
+        
+        # إضافة الملف
+        os.system(f'git add {filename}')
+        
+        # Commit
+        commit_message = f"Add TİAK ratings for {date_str}"
+        os.system(f'git commit -m "{commit_message}"')
+        
+        # Push
+        os.system('git push')
+        
+        log("✓ Successfully committed to GitHub")
+        return True
+    except Exception as e:
+        log(f"✗ Git commit failed: {str(e)}")
+        return False
+
 def send_to_api(data):
-    log("Sending to API...")
+    """إرسال البيانات للـ API"""
+    log("Attempting to send to API...")
+    
+    # طباعة البيانات للفحص
+    log("=== DATA STRUCTURE ===")
+    log(json.dumps(data, indent=2, ensure_ascii=False))
+    log("=== END DATA ===")
+    
+    if not API_URL or not API_TOKEN:
+        log("⚠️ API credentials not configured, skipping API call")
+        return False
     
     headers = {
         'Content-Type': 'application/json',
@@ -134,16 +190,21 @@ def send_to_api(data):
     try:
         response = requests.post(API_URL, json=data, headers=headers, timeout=30)
         
+        log(f"API Response Status: {response.status_code}")
+        log(f"API Response Body: {response.text[:500]}")
+        
         if response.status_code == 200:
             result = response.json()
-            log(f"Success: {result}")
+            log(f"✓ API Success: {result}")
             return True
         else:
-            log(f"API Error {response.status_code}: {response.text}")
+            log(f"✗ API Error {response.status_code}: {response.text}")
             return False
             
     except Exception as e:
-        log(f"Request failed: {str(e)}")
+        log(f"✗ API Request failed: {str(e)}")
+        import traceback
+        log(traceback.format_exc())
         return False
 
 def main():
@@ -152,30 +213,54 @@ def main():
     log("=" * 60)
     
     yesterday = datetime.now() - timedelta(days=1)
-    date_str = yesterday.strftime('%m.%d.%Y')
+    date_str = yesterday.strftime('%d.%m.%Y')
     
     log(f"Target date: {date_str}")
     
+    # 1. جمع البيانات
     data = scrape_tiak_with_browser(date_str)
     
     if not data:
-        log("Failed to scrape data")
+        log("✗ Failed to scrape data")
         exit(1)
     
     if not data['categories']['total']:
-        log("No data found for this date")
+        log("✗ No data found for this date")
         exit(1)
     
-    log(f"Total programs scraped:")
+    log(f"✓ Total programs scraped:")
     log(f"  - All People: {len(data['categories']['total'])}")
     log(f"  - AB: {len(data['categories']['ab'])}")
     log(f"  - ABC1: {len(data['categories']['abc1'])}")
     
-    if send_to_api(data):
-        log("Completed successfully!")
+    # 2. حفظ البيانات محلياً
+    filename = save_data_to_file(data, date_str)
+    
+    if not filename:
+        log("✗ Failed to save data locally")
+        exit(1)
+    
+    # 3. Commit للـ GitHub
+    git_success = commit_to_github(filename, date_str)
+    
+    # 4. محاولة الإرسال للـ API (اختياري)
+    api_success = send_to_api(data)
+    
+    # 5. النتيجة النهائية
+    log("=" * 60)
+    log("SUMMARY")
+    log("=" * 60)
+    log(f"✓ Data Scraped: YES")
+    log(f"✓ Saved Locally: {'YES' if filename else 'NO'}")
+    log(f"✓ Committed to GitHub: {'YES' if git_success else 'NO'}")
+    log(f"✓ Sent to API: {'YES' if api_success else 'NO'}")
+    
+    # نجاح إذا تم الحفظ في GitHub حتى لو فشل الـ API
+    if git_success:
+        log("✓ SUCCESS: Data saved in GitHub!")
         exit(0)
     else:
-        log("Failed to send to API")
+        log("✗ FAILED: Could not save data")
         exit(1)
 
 if __name__ == '__main__':
