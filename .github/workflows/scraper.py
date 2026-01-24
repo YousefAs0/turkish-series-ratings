@@ -34,32 +34,29 @@ def scrape_tiak_with_browser(date_str):
             log("Opening TİAK charts page...")
             page.goto('https://tiak.com.tr/en/charts', wait_until='networkidle', timeout=60000)
             
-            log("Page loaded, waiting for elements...")
-            page.wait_for_selector('#tarih', timeout=10000)
+            log("Waiting for page to load...")
+            time.sleep(3)
             
-            log(f"Setting date: {date_str}")
-            page.fill('#tarih', date_str)
+            log("Clicking on Daily Reports...")
+            page.click('#daily-tables')
+            time.sleep(2)
             
             categories = [
-                {'name': 'total', 'radio_id': 'kisi1', 'label': 'All People'},
-                {'name': 'ab', 'radio_id': 'kisi2', 'label': 'AB'},
-                {'name': 'abc1', 'radio_id': 'kisi3', 'label': '20+ABC1'}
+                {'name': 'total', 'value': '1', 'label': 'All People'},
+                {'name': 'ab', 'value': '2', 'label': 'AB'},
+                {'name': 'abc1', 'value': '3', 'label': '20+ABC1'}
             ]
             
             for category in categories:
                 try:
                     log(f"Selecting category: {category['label']}")
                     
-                    page.click(f"#{category['radio_id']}")
-                    time.sleep(1)
+                    page.select_option('#kisi', category['value'])
                     
-                    page.click('#buton')
+                    log("Waiting for table to update...")
+                    time.sleep(3)
                     
-                    log("Waiting for table to load...")
-                    page.wait_for_selector('table.table', timeout=15000)
-                    time.sleep(2)
-                    
-                    table_html = page.inner_html('table.table')
+                    table_html = page.inner_html('#tablo')
                     
                     programs = parse_table_html(table_html)
                     all_data['categories'][category['name']] = programs
@@ -85,7 +82,11 @@ def parse_table_html(html):
     soup = BeautifulSoup(html, 'html.parser')
     programs = []
     
-    rows = soup.find_all('tr')
+    table = soup.find('table')
+    if not table:
+        return programs
+    
+    rows = table.find_all('tr')
     
     for row in rows[1:]:
         cells = row.find_all('td')
@@ -95,14 +96,14 @@ def parse_table_html(html):
         
         try:
             rank = cells[0].get_text(strip=True)
-            channel = cells[1].get_text(strip=True)
-            name = cells[2].get_text(strip=True)
+            name = cells[1].get_text(strip=True)
+            channel = cells[2].get_text(strip=True)
             start_time = cells[3].get_text(strip=True)
             end_time = cells[4].get_text(strip=True)
             rating = cells[5].get_text(strip=True)
             share = cells[6].get_text(strip=True)
             
-            if not name or name == '-':
+            if not name or name == '-' or not rank:
                 continue
             
             program = {
