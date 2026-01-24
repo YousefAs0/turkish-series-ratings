@@ -2,16 +2,21 @@ name: Daily TİAK Scraper
 
 on:
   schedule:
-    - cron: '0 2 * * *'
-  workflow_dispatch:
+    - cron: '0 2 * * *'  # كل يوم الساعة 2 صباحاً
+  workflow_dispatch:  # تشغيل يدوي
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
     
+    permissions:
+      contents: write  # ضروري للـ commit
+    
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -20,13 +25,19 @@ jobs:
       
       - name: Install dependencies
         run: |
-          pip install playwright requests beautifulsoup4
+          pip install requests beautifulsoup4 playwright
           playwright install chromium
-          playwright install-deps
       
       - name: Run scraper
         env:
           API_URL: ${{ secrets.API_URL }}
           API_TOKEN: ${{ secrets.API_TOKEN }}
-        run: |
-          python .github/workflows/scraper.py
+        run: python .github/workflows/scraper.py
+      
+      - name: Upload artifact (backup)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scraped-data
+          path: data/*.json
+          retention-days: 90
