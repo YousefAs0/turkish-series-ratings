@@ -90,10 +90,7 @@ def scrape_tiak():
                 }
                 final_programs.append(prog)
 
-            return {
-                'date': db_date,
-                'programs': final_programs
-            }
+            return {'date': db_date, 'programs': final_programs}
 
         except Exception as e:
             log(f"Error: {str(e)}")
@@ -104,8 +101,8 @@ def scrape_tiak():
 def main():
     try:
         data = scrape_tiak()
-        if not data['programs']:
-            raise Exception("No programs found")
+        if not data or not data['programs']:
+            raise Exception("No data collected")
 
         os.makedirs('data', exist_ok=True)
         filename = f"data/ratings_{data['date']}.json"
@@ -113,11 +110,12 @@ def main():
             json.dump(data, f, indent=2, ensure_ascii=False)
         
         if API_URL and API_TOKEN:
-            requests.post(API_URL, json=data, headers={'Authorization': f'Bearer {API_TOKEN}'}, timeout=60)
+            headers = {'Authorization': f'Bearer {API_TOKEN}', 'Content-Type': 'application/json'}
+            requests.post(API_URL, json=data, headers=headers, timeout=60)
         
-        log("Success")
-    except Exception:
-        log("Failed")
+        log("Execution Successful")
+    except Exception as e:
+        log(f"Execution Failed: {e}")
         exit(1)
 
 if __name__ == '__main__':
