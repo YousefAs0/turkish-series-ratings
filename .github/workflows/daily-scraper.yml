@@ -2,16 +2,15 @@ name: Daily TİAK Scraper
 
 on:
   schedule:
-    # تم الضبط على الساعة 09:00 UTC (12 ظهراً بتوقيت تركيا) لضمان نزول البيانات
     - cron: '0 9 * * *'
-  workflow_dispatch: # للتشغيل اليدوي
+  workflow_dispatch:
 
 jobs:
   scrape_and_sync:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      issues: write # للسماح بفتح تذكرة خطأ عند الفشل
+      issues: write
     
     steps:
       - name: Checkout Code
@@ -33,17 +32,20 @@ jobs:
           API_TOKEN: ${{ secrets.API_TOKEN }}
         run: python .github/workflows/scraper.py
 
-      # خطوة الـ Commit تم فصلها لتكون أكثر استقراراً
       - name: Commit and Push Changes
         if: success()
         run: |
           git config --global user.name "Scraper Bot"
-          git config --global user.email "bot@ratings.com"
+          git config --global user.email "bot@turkish-ratings.com"
           git add data/*.json
-          git commit -m "Auto-update: Ratings for $(date -d 'yesterday' +'%Y-%m-%d')" || exit 0
+          git commit -m "Auto-archive: $(date +'%Y-%m-%d')" || exit 0
           git push
 
-      # نظام التنبيه الاحترافي: فتح Issue عند الفشل
+      - name: Trigger TMDB Sync
+        if: success()
+        run: |
+          curl -s "${{ secrets.TMDB_SYNC_URL }}"
+
       - name: Notify on Failure
         if: failure()
         uses: actions/github-script@v7
@@ -52,6 +54,6 @@ jobs:
             github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: '❌ Scraper Failed: ' + new Date().toISOString().split('T')[0],
-              body: 'The daily TİAK scraper failed. Check the logs: https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/actions/runs/' + context.runId
+              title: '❌ Scraper Engine Failure: ' + new Date().toISOString().split('T')[0],
+              body: 'Daily TİAK scraper failed. Check logs: https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/actions/runs/' + context.runId
             })
