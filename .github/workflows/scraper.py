@@ -2,11 +2,10 @@ import os
 import json
 import requests
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
 
-# الإعدادات من البيئة
 API_URL = os.getenv('API_URL')
 API_TOKEN = os.getenv('API_TOKEN')
 
@@ -19,7 +18,7 @@ def parse_table(html):
     table = soup.find('table')
     if not table: return data
     
-    rows = table.find_all('tr')[1:] # تخطي الرأس
+    rows = table.find_all('tr')[1:]
     for row in rows:
         cells = row.find_all('td')
         if len(cells) < 7: continue
@@ -38,21 +37,20 @@ def parse_table(html):
     return data
 
 def scrape_tiak():
-    target_date = (datetime.now() - timedelta(days=1)).strftime('%d.%m.%Y')
-    log(f"Targeting Date: {target_date}")
-
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
         
         try:
-            page.goto('https://tiak.com.tr/en/charts', wait_until='networkidle', timeout=60000)
+            page.goto('https://tiak.com.tr/en/charts', wait_until='networkidle', timeout=90000)
             page.wait_for_selector('#daily-tables')
             page.click('#daily-tables')
+            time.sleep(5)
             
-            # التحقق من أن التاريخ المختار هو التاريخ المطلوب
-            # ملاحظة: TIAK أحياناً يتأخر، لذا سنتأكد من تاريخ الجدول الظاهر
-            time.sleep(2)
+            site_date = page.input_value('#datepicker')
+            day, month, year = site_date.split('.')
+            db_date = f"{year}-{month}-{day}"
+            log(f"Site Date: {db_date}")
             
             results = {'total': {}, 'ab': {}, 'abc1': {}}
             categories = [
@@ -62,21 +60,17 @@ def scrape_tiak():
             ]
 
             for cat in categories:
-                log(f"Fetching category: {cat['key']}...")
+                log(f"Category: {cat['key']}")
                 page.select_option('#kisi', cat['id'])
-                # الانتظار حتى يتغير محتوى الجدول (اختفاء واعادة ظهور محتوى محدد)
                 page.wait_for_load_state('networkidle')
-                time.sleep(3) # أمان إضافي لموقع TIAK الثقيل
-                
+                time.sleep(4)
                 html = page.inner_html('#tablo')
                 results[cat['key']] = parse_table(html)
 
-            # دمج البيانات بذكاء (Master List)
             all_names = set(list(results['total'].keys()) + list(results['ab'].keys()) + list(results['abc1'].keys()))
             final_programs = []
 
             for name in all_names:
-                # نأخذ المعلومات الأساسية من أي فئة ظهر فيها المسلسل
                 ref = results['total'].get(name) or results['ab'].get(name) or results['abc1'].get(name)
                 
                 prog = {
@@ -97,12 +91,12 @@ def scrape_tiak():
                 final_programs.append(prog)
 
             return {
-                'date': (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d'),
+                'date': db_date,
                 'programs': final_programs
             }
 
         except Exception as e:
-            log(f"CRITICAL ERROR: {str(e)}")
+            log(f"Error: {str(e)}")
             raise e
         finally:
             browser.close()
@@ -111,23 +105,20 @@ def main():
     try:
         data = scrape_tiak()
         if not data['programs']:
-            raise Exception("No data found in tables. TIAK might not have updated yet.")
+            raise Exception("No programs found")
 
-        # حفظ الملف محلياً للأرشفة
         os.makedirs('data', exist_ok=True)
         filename = f"data/ratings_{data['date']}.json"
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
         
-        # الإرسال للـ API
         if API_URL and API_TOKEN:
-            resp = requests.post(API_URL, json=data, headers={'Authorization': f'Bearer {API_TOKEN}'})
-            log(f"API Sync Status: {resp.status_code}")
+            requests.post(API_URL, json=data, headers={'Authorization': f'Bearer {API_TOKEN}'}, timeout=60)
         
-        log("Process Completed Successfully.")
-    except Exception as e:
-        log("Process Failed.")
-        exit(1) # مهم جداً لكي يشعر GitHub Actions بالفشل
+        log("Success")
+    except Exception:
+        log("Failed")
+        exit(1)
 
 if __name__ == '__main__':
     main()
