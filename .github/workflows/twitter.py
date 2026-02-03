@@ -52,13 +52,7 @@ def create_card(data):
     W, H = 1200, 1550
     card = Image.new('RGB', (W, H), COLOR_WHITE)
     draw = ImageDraw.Draw(card)
-
-    f_t = get_font(130)
-    f_s = get_font(85)
-    f_m = get_font(32)
-    f_p = get_font(30)
-    f_r = get_font(120)
-    f_tr = get_font(38)
+    f_t, f_s, f_m, f_p, f_r, f_tr = get_font(130), get_font(85), get_font(32), get_font(30), get_font(120), get_font(38)
 
     draw.text((W/2, 160), data['n'].upper(), fill=COLOR_BLACK, font=f_t, anchor="mm")
     draw.text((W/2, 290), f"SEASON {data['s']} : EPISODE {data['e']}", fill=COLOR_RED, font=f_s, anchor="mm")
@@ -78,7 +72,6 @@ def create_card(data):
         draw.rounded_rectangle((xc-170, ys+85, xc+170, ys+155), 35, COLOR_RED)
         draw.text((xc, ys+120), f"SHARE: {st['sh'] or '0.0'}%", COLOR_WHITE, f_p, "mm")
         draw.text((xc, ys+250), str(st['rt'] or '0.0'), COLOR_RED, f_r, "mm")
-        
         tv = float(st['tr'] or 0.0)
         tc = COLOR_GREEN if tv >= 0 else COLOR_RED
         draw_arrow(draw, xc-55, ys+340, "up" if tv >= 0 else "down", tc)
@@ -92,14 +85,12 @@ def create_card(data):
             draw.rounded_rectangle((60, H-130, 150, H-70), 15, COLOR_RED)
             draw.text((105, H-100), "TR", COLOR_WHITE, f_p, "mm")
             draw.text((170, H-100), "OFFICIAL RATINGS", COLOR_WHITE, f_p, "lm")
-        except:
-            pass
+        except: pass
 
     mask = Image.new('L', (W, H), 0)
     ImageDraw.Draw(mask).rounded_rectangle((0, 0, W, H), 100, 255)
     final = Image.new('RGBA', (W, H), (0,0,0,0))
     final.paste(card, (0,0), mask=mask)
-    
     buf = BytesIO()
     final.save(buf, format='PNG')
     buf.seek(0)
@@ -108,15 +99,23 @@ def create_card(data):
 def run():
     path = 'data'
     if not os.path.exists(path): return
-    files = [f for f in os.listdir(path) if f.endswith('.json')]
+    files = [os.path.join(path, f) for f in os.listdir(path) if f.endswith('.json')]
     if not files: return
     
-    with open(os.path.join(path, sorted(files)[-1]), 'r', encoding='utf-8') as f:
+    # الترتيب حسب وقت إنشاء الملف لضمان أخذ الأحدث
+    latest_file = max(files, key=os.path.getctime)
+    with open(latest_file, 'r', encoding='utf-8') as f:
         jd = json.load(f)
 
+    # الإصلاح هنا: استخدام الكلمات المفتاحية Keyword Arguments لمنع خطأ 401
     auth = tweepy.OAuth1UserHandler(X_K, X_S, X_T, X_TS)
     api_v1 = tweepy.API(auth)
-    client_v2 = tweepy.Client(X_K, X_S, X_T, X_TS)
+    client_v2 = tweepy.Client(
+        consumer_key=X_K,
+        consumer_secret=X_S,
+        access_token=X_T,
+        access_token_secret=X_TS
+    )
 
     shows = [p for p in jd['programs'] if p['rank_total'] is not None]
     shows = sorted(shows, key=lambda x: x['rank_total'])[:3]
@@ -124,7 +123,6 @@ def run():
     for s in shows:
         meta = get_metadata(s['name'])
         if not meta: continue
-
         buf = create_card({
             'n': s['name'], 's': meta['s'], 'e': meta['e'], 'd': jd['date'], 'c': s['channel'],
             'r1': s['rank_total'], 's1': s['share_total'], 'ra1': s['rating_total'], 't1': 0.0,
@@ -132,17 +130,14 @@ def run():
             'r3': s['rank_abc1'], 's3': s['share_abc1'], 'ra3': s['rating_abc1'], 't3': 0.0,
             'u': meta['url']
         })
-
         tmp = f"t_{s['name']}.png"
         with open(tmp, "wb") as f: f.write(buf.getbuffer())
-
         try:
             mid = api_v1.media_upload(tmp).media_id
             txt = f"📊 {s['name']} Ratings ({jd['date']})\n\nSeason {meta['s']} | Episode {meta['e']}\n\n#TurkishSeries #Rating #Dizi"
             client_v2.create_tweet(text=txt, media_ids=[mid])
             print(f"Posted: {s['name']}")
-        except Exception as e:
-            print(e)
+        except Exception as e: print(e)
         finally:
             if os.path.exists(tmp): os.remove(tmp)
 
