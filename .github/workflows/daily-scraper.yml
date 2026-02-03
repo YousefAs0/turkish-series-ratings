@@ -3,6 +3,7 @@ name: Daily TİAK Scraper
 on:
   schedule:
     - cron: '0 9 * * *'
+    - cron: '0 11 * * *'
   workflow_dispatch:
 
 jobs:
