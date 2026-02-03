@@ -2,7 +2,6 @@ import os
 import json
 import requests
 import tweepy
-import time
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 from io import BytesIO
 
@@ -19,19 +18,14 @@ COLOR_GREEN = (16, 185, 129)
 COLOR_GRAY = (110, 110, 110)
 
 def get_font(size):
-    paths = [
-        "impact.ttf",
-        "C:/Windows/Fonts/impact.ttf", 
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "arialbd.ttf"
-    ]
-    for path in paths:
-        if os.path.exists(path):
-            return ImageFont.truetype(path, size)
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    font_path = os.path.join(current_dir, "impact.ttf")
+    if os.path.exists(font_path):
+        return ImageFont.truetype(font_path, size)
     return ImageFont.load_default()
 
 def draw_arrow(draw, x, y, direction, color):
-    size = 12
+    size = 15
     if direction == "up":
         coords = [(x, y - size), (x - size, y + size), (x + size, y + size)]
     else:
@@ -146,6 +140,7 @@ def run():
             mid = api_v1.media_upload(tmp).media_id
             txt = f"📊 {s['name']} Ratings ({jd['date']})\n\nSeason {meta['s']} | Episode {meta['e']}\n\n#TurkishSeries #Rating #Dizi"
             client_v2.create_tweet(text=txt, media_ids=[mid])
+            print(f"Posted: {s['name']}")
         except Exception as e:
             print(e)
         finally:
