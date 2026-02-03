@@ -33,6 +33,15 @@ jobs:
           API_TOKEN: ${{ secrets.API_TOKEN }}
         run: python .github/workflows/scraper.py
 
+      - name: Run Twitter Bot
+        env:
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+        run: python twitter.py
+
       - name: Commit and Push Changes
         if: success()
         run: |
