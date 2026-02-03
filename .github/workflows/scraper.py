@@ -2,7 +2,7 @@ import os
 import json
 import requests
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
 
@@ -23,11 +23,13 @@ def parse_table(html):
         cells = row.find_all('td')
         if len(cells) < 7: continue
         
-        name = cells[1].get_text(strip=True)
+        name = " ".join(cells[1].get_text(strip=True).split())
         if not name or name == '-': continue
         
+        rank_text = cells[0].get_text(strip=True).replace('.', '')
+        
         data[name] = {
-            'rank': int(cells[0].get_text(strip=True)) if cells[0].get_text(strip=True).isdigit() else 0,
+            'rank': int(rank_text) if rank_text.isdigit() else 0,
             'channel': cells[2].get_text(strip=True),
             'start_time': cells[3].get_text(strip=True),
             'end_time': cells[4].get_text(strip=True),
@@ -45,25 +47,38 @@ def scrape_tiak():
             page.goto('https://tiak.com.tr/en/charts', wait_until='networkidle', timeout=90000)
             page.wait_for_selector('#daily-tables')
             page.click('#daily-tables')
+            
+            yesterday = datetime.now() - timedelta(days=1)
+            target_date_tr = yesterday.strftime("%d.%m.%Y")
+            target_date_db = yesterday.strftime("%Y-%m-%d")
+            
+            log(f"Targeting Date: {target_date_tr}")
+
+            page.wait_for_selector('#datepicker')
+            page.fill('#datepicker', target_date_tr)
+            page.keyboard.press('Enter')
+            
             time.sleep(5)
-            
-            site_date = page.input_value('#datepicker')
-            day, month, year = site_date.split('.')
-            db_date = f"{year}-{month}-{day}"
-            log(f"Site Date: {db_date}")
-            
+            page.wait_for_load_state('networkidle')
+
+            actual_date = page.input_value('#datepicker')
+            if actual_date != target_date_tr:
+                raise Exception(f"Data mismatch! Wanted {target_date_tr}, got {actual_date}. Data not ready.")
+
             results = {'total': {}, 'ab': {}, 'abc1': {}}
-            categories = [
-                {'id': '1', 'key': 'total'},
-                {'id': '2', 'key': 'ab'},
-                {'id': '3', 'key': 'abc1'}
-            ]
+            categories = [{'id': '1', 'key': 'total'}, {'id': '2', 'key': 'ab'}, {'id': '3', 'key': 'abc1'}]
 
             for cat in categories:
-                log(f"Category: {cat['key']}")
+                log(f"Processing: {cat['key']}")
+                old_content = page.inner_text('#tablo')
                 page.select_option('#kisi', cat['id'])
-                page.wait_for_load_state('networkidle')
-                time.sleep(4)
+                
+                try:
+                    page.wait_for_function(f"document.querySelector('#tablo').innerText !== `{old_content}`", timeout=10000)
+                except:
+                    pass
+                
+                time.sleep(2)
                 html = page.inner_html('#tablo')
                 results[cat['key']] = parse_table(html)
 
@@ -72,7 +87,8 @@ def scrape_tiak():
 
             for name in all_names:
                 ref = results['total'].get(name) or results['ab'].get(name) or results['abc1'].get(name)
-                
+                if not ref: continue
+
                 prog = {
                     'name': name,
                     'channel': ref['channel'],
@@ -90,7 +106,7 @@ def scrape_tiak():
                 }
                 final_programs.append(prog)
 
-            return {'date': db_date, 'programs': final_programs}
+            return {'date': target_date_db, 'programs': final_programs}
 
         except Exception as e:
             log(f"Error: {str(e)}")
@@ -106,6 +122,7 @@ def main():
 
         os.makedirs('data', exist_ok=True)
         filename = f"data/ratings_{data['date']}.json"
+        
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
         
