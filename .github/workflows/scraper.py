@@ -27,14 +27,16 @@ def parse_table(html):
         if not name or name == '-': continue
         
         rank_text = cells[0].get_text(strip=True).replace('.', '')
+        rating_text = cells[5].get_text(strip=True).replace(',', '.')
+        share_text = cells[6].get_text(strip=True).replace(',', '.')
         
         data[name] = {
-            'rank': int(rank_text) if rank_text.isdigit() else 0,
+            'rank': int(rank_text) if rank_text.isdigit() else None,
             'channel': cells[2].get_text(strip=True),
             'start_time': cells[3].get_text(strip=True),
             'end_time': cells[4].get_text(strip=True),
-            'rating': float(cells[5].get_text(strip=True).replace(',', '.')) if cells[5].get_text(strip=True) != '-' else 0.0,
-            'share': float(cells[6].get_text(strip=True).replace(',', '.')) if cells[6].get_text(strip=True) != '-' else 0.0
+            'rating': float(rating_text) if rating_text != '-' and rating_text != '' else None,
+            'share': float(share_text) if share_text != '-' and share_text != '' else None
         }
     return data
 
