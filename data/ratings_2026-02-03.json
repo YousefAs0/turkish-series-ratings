@@ -2,6 +2,66 @@
   "date": "2026-02-03",
   "programs": [
     {
+      "name": "GELIN",
+      "channel": "KANAL 7",
+      "start_time": "19:36:44",
+      "end_time": "21:19:57",
+      "rank_total": 10,
+      "rating_total": 3.23,
+      "share_total": 8.71,
+      "rank_ab": 9,
+      "rating_ab": 2.57,
+      "share_ab": 7.77,
+      "rank_abc1": null,
+      "rating_abc1": null,
+      "share_abc1": null
+    },
+    {
+      "name": "KISKANMAK (OZET)",
+      "channel": "NOW",
+      "start_time": "19:59:54",
+      "end_time": "20:58:35",
+      "rank_total": null,
+      "rating_total": null,
+      "share_total": null,
+      "rank_ab": 10,
+      "rating_ab": 2.37,
+      "share_ab": 6.83,
+      "rank_abc1": null,
+      "rating_abc1": null,
+      "share_abc1": null
+    },
+    {
+      "name": "SELCUK TEPELI ILE NOW ANA HABER",
+      "channel": "NOW",
+      "start_time": "19:00:08",
+      "end_time": "19:59:49",
+      "rank_total": 7,
+      "rating_total": 4.1,
+      "share_total": 12.31,
+      "rank_ab": 7,
+      "rating_ab": 3.47,
+      "share_ab": 12.5,
+      "rank_abc1": 7,
+      "rating_abc1": 4.26,
+      "share_abc1": 13.21
+    },
+    {
+      "name": "SURVIVOR",
+      "channel": "TV8",
+      "start_time": "20:43:44",
+      "end_time": "24:16:59",
+      "rank_total": 8,
+      "rating_total": 3.63,
+      "share_total": 9.62,
+      "rank_ab": 4,
+      "rating_ab": 4.2,
+      "share_ab": 11.89,
+      "rank_abc1": 8,
+      "rating_abc1": 3.86,
+      "share_abc1": 9.67
+    },
+    {
       "name": "A.B.I. (OZET)",
       "channel": "ATV",
       "start_time": "19:59:43",
@@ -32,19 +92,19 @@
       "share_abc1": 25.34
     },
     {
-      "name": "SELCUK TEPELI ILE NOW ANA HABER",
-      "channel": "NOW",
-      "start_time": "19:00:08",
-      "end_time": "19:59:49",
-      "rank_total": 7,
-      "rating_total": 4.1,
-      "share_total": 12.31,
-      "rank_ab": 7,
-      "rating_ab": 3.47,
-      "share_ab": 12.5,
-      "rank_abc1": 7,
-      "rating_abc1": 4.26,
-      "share_abc1": 13.21
+      "name": "MUGE ANLI ILE TATLI SERT",
+      "channel": "ATV",
+      "start_time": "10:00:04",
+      "end_time": "12:59:56",
+      "rank_total": 4,
+      "rating_total": 4.93,
+      "share_total": 32.71,
+      "rank_ab": 6,
+      "rating_ab": 3.7,
+      "share_ab": 30.41,
+      "rank_abc1": 6,
+      "rating_abc1": 5.01,
+      "share_abc1": 33.92
     },
     {
       "name": "MEHMED FETIHLER SULTANI (OZET)",
@@ -62,21 +122,6 @@
       "share_abc1": 7.55
     },
     {
-      "name": "KISKANMAK (OZET)",
-      "channel": "NOW",
-      "start_time": "19:59:54",
-      "end_time": "20:58:35",
-      "rank_total": null,
-      "rating_total": null,
-      "share_total": null,
-      "rank_ab": 10,
-      "rating_ab": 2.37,
-      "share_ab": 6.83,
-      "rank_abc1": null,
-      "rating_abc1": null,
-      "share_abc1": null
-    },
-    {
       "name": "KISKANMAK",
       "channel": "NOW",
       "start_time": "20:58:40",
@@ -90,21 +135,6 @@
       "rank_abc1": 3,
       "rating_abc1": 5.46,
       "share_abc1": 13.55
-    },
-    {
-      "name": "MEHMED FETIHLER SULTANI",
-      "channel": "TRT 1",
-      "start_time": "20:59:19",
-      "end_time": "24:10:25",
-      "rank_total": 6,
-      "rating_total": 4.39,
-      "share_total": 11.48,
-      "rank_ab": 5,
-      "rating_ab": 4.1,
-      "share_ab": 11.43,
-      "rank_abc1": 5,
-      "rating_abc1": 5.11,
-      "share_abc1": 12.55
     },
     {
       "name": "ATV ANA HABER",
@@ -122,19 +152,19 @@
       "share_abc1": 11.25
     },
     {
-      "name": "SURVIVOR",
-      "channel": "TV8",
-      "start_time": "20:43:44",
-      "end_time": "24:16:59",
-      "rank_total": 8,
-      "rating_total": 3.63,
-      "share_total": 9.62,
-      "rank_ab": 4,
-      "rating_ab": 4.2,
-      "share_ab": 11.89,
-      "rank_abc1": 8,
-      "rating_abc1": 3.86,
-      "share_abc1": 9.67
+      "name": "MEHMED FETIHLER SULTANI",
+      "channel": "TRT 1",
+      "start_time": "20:59:19",
+      "end_time": "24:10:25",
+      "rank_total": 6,
+      "rating_total": 4.39,
+      "share_total": 11.48,
+      "rank_ab": 5,
+      "rating_ab": 4.1,
+      "share_ab": 11.43,
+      "rank_abc1": 5,
+      "rating_abc1": 5.11,
+      "share_abc1": 12.55
     },
     {
       "name": "A.B.I.",
@@ -150,36 +180,6 @@
       "rank_abc1": 1,
       "rating_abc1": 10.04,
       "share_abc1": 24.61
-    },
-    {
-      "name": "GELIN",
-      "channel": "KANAL 7",
-      "start_time": "19:36:44",
-      "end_time": "21:19:57",
-      "rank_total": 10,
-      "rating_total": 3.23,
-      "share_total": 8.71,
-      "rank_ab": 9,
-      "rating_ab": 2.57,
-      "share_ab": 7.77,
-      "rank_abc1": null,
-      "rating_abc1": null,
-      "share_abc1": null
-    },
-    {
-      "name": "MUGE ANLI ILE TATLI SERT",
-      "channel": "ATV",
-      "start_time": "10:00:04",
-      "end_time": "12:59:56",
-      "rank_total": 4,
-      "rating_total": 4.93,
-      "share_total": 32.71,
-      "rank_ab": 6,
-      "rating_ab": 3.7,
-      "share_ab": 30.41,
-      "rank_abc1": 6,
-      "rating_abc1": 5.01,
-      "share_abc1": 33.92
     }
   ]
 }
