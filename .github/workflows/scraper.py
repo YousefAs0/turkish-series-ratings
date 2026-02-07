@@ -40,22 +40,21 @@ def parse_table(html):
         }
     return data
 
-def scrape_tiak():
+def scrape_single_date(target_date_obj):
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
         
         try:
+            target_date_tr = target_date_obj.strftime("%d.%m.%Y")
+            target_date_db = target_date_obj.strftime("%Y-%m-%d")
+            
+            log(f"Processing Date: {target_date_tr}")
+
             page.goto('https://tiak.com.tr/en/charts', wait_until='networkidle', timeout=90000)
             page.wait_for_selector('#daily-tables')
             page.click('#daily-tables')
             
-            yesterday = datetime.now() - timedelta(days=1)
-            target_date_tr = yesterday.strftime("%d.%m.%Y")
-            target_date_db = yesterday.strftime("%Y-%m-%d")
-            
-            log(f"Targeting Date: {target_date_tr}")
-
             page.wait_for_selector('#datepicker')
             page.fill('#datepicker', target_date_tr)
             page.keyboard.press('Enter')
@@ -65,16 +64,15 @@ def scrape_tiak():
 
             actual_date = page.input_value('#datepicker')
             if actual_date != target_date_tr:
-                raise Exception(f"Data mismatch! Wanted {target_date_tr}, got {actual_date}. Data not ready.")
+                log(f"Data mismatch for {target_date_tr}, got {actual_date}")
+                return None
 
             results = {'total': {}, 'ab': {}, 'abc1': {}}
             categories = [{'id': '1', 'key': 'total'}, {'id': '2', 'key': 'ab'}, {'id': '3', 'key': 'abc1'}]
 
             for cat in categories:
-                log(f"Processing: {cat['key']}")
                 old_content = page.inner_text('#tablo')
                 page.select_option('#kisi', cat['id'])
-                
                 try:
                     page.wait_for_function(f"document.querySelector('#tablo').innerText !== `{old_content}`", timeout=10000)
                 except:
@@ -111,30 +109,56 @@ def scrape_tiak():
             return {'date': target_date_db, 'programs': final_programs}
 
         except Exception as e:
-            log(f"Error: {str(e)}")
-            raise e
+            log(f"Error scraping {target_date_tr}: {str(e)}")
+            return None
         finally:
             browser.close()
 
 def main():
     try:
-        data = scrape_tiak()
-        if not data or not data['programs']:
-            raise Exception("No data collected")
+        today = datetime.now()
+        weekday = today.weekday()
+        
+        target_dates = []
+        
+        if weekday == 5 or weekday == 6:
+            log("Weekend detected. Skipping execution.")
+            return
+
+        if weekday == 0:
+            target_dates = [
+                today - timedelta(days=3),
+                today - timedelta(days=2),
+                today - timedelta(days=1)
+            ]
+        else:
+            target_dates = [today - timedelta(days=1)]
 
         os.makedirs('data', exist_ok=True)
-        filename = f"data/ratings_{data['date']}.json"
         
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        
-        if API_URL and API_TOKEN:
-            headers = {'Authorization': f'Bearer {API_TOKEN}', 'Content-Type': 'application/json'}
-            requests.post(API_URL, json=data, headers=headers, timeout=60)
-        
-        log("Execution Successful")
+        for i, date_obj in enumerate(target_dates):
+            data = scrape_single_date(date_obj)
+            
+            if data and data['programs']:
+                filename = f"data/ratings_{data['date']}.json"
+                with open(filename, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
+                
+                if API_URL and API_TOKEN:
+                    headers = {'Authorization': f'Bearer {API_TOKEN}', 'Content-Type': 'application/json'}
+                    requests.post(API_URL, json=data, headers=headers, timeout=60)
+                    log(f"Data for {data['date']} pushed to API")
+
+                if i < len(target_dates) - 1:
+                    log("Waiting 30 seconds before next request...")
+                    time.sleep(30)
+            else:
+                log(f"No data collected for {date_obj.strftime('%Y-%m-%d')}")
+
+        log("Execution Cycle Completed")
+
     except Exception as e:
-        log(f"Execution Failed: {e}")
+        log(f"Critical Execution Failed: {e}")
         exit(1)
 
 if __name__ == '__main__':
